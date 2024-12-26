@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Subscription Learning Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        input, button {
+            margin: 10px 0;
+            padding: 10px;
+            width: 100%;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Subscription Learning Platform</h1>
+        
+        <div id="connectionStatus">
+            <p>Connect Wallet: <span id="walletStatus">Not Connected</span></p>
+            <button onclick="connectWallet()">Connect Wallet</button>
+        </div>
+
+        <div id="courseCreation">
+            <h2>Create a Course</h2>
+            <input type="number" id="coursePrice" placeholder="Course Price (Wei)">
+            <input type="number" id="courseDuration" placeholder="Course Duration (Days)">
+            <button onclick="createCourse()">Create Course</button>
+        </div>
+
+        <div id="courseSubscription">
+            <h2>Subscribe to Course</h2>
+            <input type="number" id="courseId" placeholder="Course ID">
+            <button onclick="subscribeToCourse()">Subscribe</button>
+        </div>
+
+        <div id="courseStatus">
+            <h2>Check Course Subscription</h2>
+            <input type="number" id="checkCourseId" placeholder="Course ID">
+            <button onclick="checkSubscription()">Check Subscription</button>
+            <p id="subscriptionResult"></p>
+        </div>
+    </div>
+
+    <script>
+        let web3;
+        let contract;
+        const contractAddress = '0x7991DEF40AAB7dccD4eF6e1Ef2F7562646b5Ba4f'; // Replace with your deployed contract address
+        const contractABI = [
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "courseId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "instructor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "price",
+				"type": "uint256"
+			}
+		],
+		"name": "CourseCreated",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_price",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_duration",
+				"type": "uint256"
+			}
+		],
+		"name": "createCourse",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "courseId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "student",
+				"type": "address"
+			}
+		],
+		"name": "Subscribed",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_courseId",
+				"type": "uint256"
+			}
+		],
+		"name": "subscribeToCourse",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdrawFunds",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "courses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "instructor",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "price",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "exists",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "enrollments",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "active",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_courseId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "_student",
+				"type": "address"
+			}
+		],
+		"name": "isCourseActive",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}        
+ ];
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                web3 = new Web3(window.ethereum);
+                try {
+                    // Request account access
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const accounts = await web3.eth.getAccounts();
+                    document.getElementById('walletStatus').textContent = accounts[0];
+                    
+                    // Initialize contract
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+                } catch (error) {
+                    console.error("User denied account access");
+                }
+            } else {
+                alert('Please install MetaMask!');
+            }
+        }
+
+        async function createCourse() {
+            if (!contract) {
+                alert('Please connect wallet first');
+                return;
+            }
+
+            const price = document.getElementById('coursePrice').value;
+            const duration = document.getElementById('courseDuration').value;
+            const accounts = await web3.eth.getAccounts();
+
+            try {
+                const result = await contract.methods.createCourse(price, duration)
+                    .send({ from: accounts[0] });
+                alert(`Course Created! Course ID: ${result.events.CourseCreated.returnValues.courseId}`);
+            } catch (error) {
+                console.error('Error creating course:', error);
+                alert('Failed to create course');
+            }
+        }
+
+        async function subscribeToCourse() {
+            if (!contract) {
+                alert('Please connect wallet first');
+                return;
+            }
+
+            const courseId = document.getElementById('courseId').value;
+            const accounts = await web3.eth.getAccounts();
+
+            try {
+                const courseDetails = await contract.methods.courses(courseId).call();
+                await contract.methods.subscribeToCourse(courseId)
+                    .send({ 
+                        from: accounts[0], 
+                        value: courseDetails.price 
+                    });
+                alert('Successfully subscribed to course!');
+            } catch (error) {
+                console.error('Error subscribing:', error);
+                alert('Failed to subscribe to course');
+            }
+        }
+
+        async function checkSubscription() {
+            if (!contract) {
+                alert('Please connect wallet first');
+                return;
+            }
+
+            const courseId = document.getElementById('checkCourseId').value;
+            const accounts = await web3.eth.getAccounts();
+
+            try {
+                const isActive = await contract.methods.isSubscriptionActive(courseId, accounts[0]).call();
+                document.getElementById('subscriptionResult').textContent = 
+                    isActive ? 'Subscription is Active' : 'Subscription is Inactive';
+            } catch (error) {
+                console.error('Error checking subscription:', error);
+                alert('Failed to check subscription');
+            }
+        }
+    </script>
+</body>
+</html>
